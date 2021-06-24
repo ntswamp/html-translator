@@ -3,13 +3,31 @@ use std::{
     env,
     fs,
     path::PathBuf,
-    path::Path
+    path::Path,
+    collections::HashMap,
 };
 //use reqwest::blocking::Client;
 use reqwest::StatusCode;
+use reqwest::Error;
+use serde::Deserialize;
 
 const DEEPL_KEY : &str  = "811746cf-4fe6-01a0-f728-4b0e6aff6373";
 const DEEPL_ENDPOINT : &str = "https://api.deepl.com/v2/document";
+
+
+#[derive(Deserialize)]
+struct FileInfo {
+    document_id: String,
+    document_key:String,
+}
+
+#[derive(Deserialize,Debug)]
+struct FileState {
+    document_id: String,
+    status:String,
+    seconds_remaining:String,
+    billed_characters:String,
+}
 
 fn main() -> Result<(),Box<dyn error::Error>> {
     let ja_path = env::current_dir()?;
@@ -80,7 +98,10 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                 //response received
                 match resp.status() {
                     //in case of success
-                    StatusCode::OK => retrieve_file(&filename.to_str().unwrap()),
+                    StatusCode::OK => {
+                        let info = resp.json::<FileInfo>()?;
+                        retrieve_file(&filename.to_str().unwrap(), &client, &info.document_id, &info.document_key);
+                    }
                     StatusCode::PAYLOAD_TOO_LARGE => {
                         println!("Request payload is too large!");
                     }
@@ -89,14 +110,30 @@ fn main() -> Result<(),Box<dyn error::Error>> {
             }
             en_path.pop();
         }
-
+        println!();
     }
 
     Ok(())
 }
 
-fn retrieve_file(filename: &str){
+fn retrieve_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<(),reqwest::Error>  {
     println!("Retrieving file `{}`...", filename);
     //TODO...
+    let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
+    let mut params = HashMap::new();
+    params.insert("auth_key", DEEPL_KEY);
+    params.insert("document_key", key);
+
+
+    let resp = client.post(&url)
+    .form(&params)
+    .send()?;
+    println!("{}",resp.status());
+
+    let state = resp.json::<FileState>()?;
+    
+        
+    println!("status = {:#?}", state);
+    Ok(())
 }
