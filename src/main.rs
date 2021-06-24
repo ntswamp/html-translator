@@ -2,7 +2,6 @@ use std::{
     error,
     env,
     fs,
-    fs::File,
     path::PathBuf,
     path::Path
 };
