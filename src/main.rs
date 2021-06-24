@@ -44,7 +44,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     for entry in fs::read_dir(ja_path)? {
         let entry = entry?;
         let path = entry.path();
-        let filename = path.file_name().unwrap();
+        let filename = &path.file_name().unwrap();
 
         let metadata = fs::metadata(&path)?;
         let last_modified = metadata.modified()?.elapsed()?.as_secs();
@@ -73,7 +73,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                     .text("source_lang","JA")
                     .text("target_lang","EN-US")
                     .text("auth_key",DEEPL_KEY)
-                    .file("file",path)?;
+                    .file("file",&path)?;
                 
                 let resp = client.post(DEEPL_ENDPOINT)
                     .multipart(form)
@@ -81,7 +81,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                 //response received
                 match resp.status() {
                     //in case of success
-                    StatusCode::OK => println!("success!"),
+                    StatusCode::OK => retrieve_file(&filename.to_str().unwrap()),
                     StatusCode::PAYLOAD_TOO_LARGE => {
                         println!("Request payload is too large!");
                     }
@@ -94,4 +94,10 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     }
 
     Ok(())
+}
+
+fn retrieve_file(filename: &str){
+    println!("Retrieving file `{}`...", filename);
+    //TODO...
+
 }
