@@ -6,7 +6,8 @@ use std::{
     path::PathBuf,
     path::Path
 };
-use reqwest::blocking::Client;
+//use reqwest::blocking::Client;
+use reqwest::StatusCode;
 
 const DEEPL_KEY : &str  = "811746cf-4fe6-01a0-f728-4b0e6aff6373";
 const DEEPL_ENDPOINT : &str = "https://api.deepl.com/v2/document";
@@ -67,6 +68,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
             } else {
                 //do the translate
                 //English
+                println!("starting translate {:?}", &path);
                 let form = reqwest::blocking::multipart::Form::new()
                     .text("source_lang","JA")
                     .text("target_lang","EN-US")
@@ -77,9 +79,14 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                     .multipart(form)
                     .send()?;
                 //response received
-                if resp.status().is_success() {
-                    println!("success!");
-                }
+                match resp.status() {
+                    //in case of success
+                    StatusCode::OK => println!("success!"),
+                    StatusCode::PAYLOAD_TOO_LARGE => {
+                        println!("Request payload is too large!");
+                    }
+                    s => println!("Received response status: {:?}", s),
+                };
             }
             en_path.pop();
         }
