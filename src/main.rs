@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
     path::Path,
     collections::HashMap,
+    time::Duration,
 };
 //use reqwest::blocking::Client;
 use reqwest::StatusCode;
@@ -25,11 +26,17 @@ struct FileInfo {
 struct FileState {
     document_id: String,
     status:String,
-    seconds_remaining:String,
-    billed_characters:String,
+    seconds_remaining:u32,
+    //billed_characters:String,  //this field only existing for paid account.
 }
 
 fn main() -> Result<(),Box<dyn error::Error>> {
+
+    //&str vector storing file names of which are failed to translate.
+    let mut bad_translaion: Vec<String> = Vec::new();
+    //for those successful transaltion.
+    let mut good_translaion: Vec<String> = Vec::new();
+
     let ja_path = env::current_dir()?;
     let parent_path = ja_path.parent().unwrap();
     //en
@@ -45,13 +52,13 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     zhtw_path.push("zhtw");
     
     println!(
-        "en - {:?} zhcn - {:?} zhtw - {:?}",
+        "en - {:?}\nzhcn - {:?}\nzhtw - {:?}\n",
         en_path, zhcn_path, zhtw_path
     );
 
 
     println!(
-        "Entries modified in the last 24 hours in {:?}:",
+        "items modified in the last 24 hours in {:?}:\n\n",
         ja_path,
     );
 
@@ -61,7 +68,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     for entry in fs::read_dir(ja_path)? {
         let entry = entry?;
         let path = entry.path();
-        let filename = &path.file_name().unwrap();
+        let filename = path.file_name().unwrap().to_str().unwrap();
 
         let metadata = fs::metadata(&path)?;
         let last_modified = metadata.modified()?.elapsed()?.as_secs();
@@ -78,9 +85,10 @@ fn main() -> Result<(),Box<dyn error::Error>> {
             //check if file exists in en_path
             en_path.push(filename);
             //  en_path = "/home/nts/rust/en/Cargo.lock"
-            println!("checking if the file `{:?}` has been already translated...", &en_path);
+            println!("checking on file {:?} ...", &en_path);
             //if exists
             if Path::new(en_path.to_str().unwrap()).exists() {
+                println!("file {:?} had been translated by someone, skip.\n",filename);
                 continue;
             } else {
                 //do the translate
@@ -100,7 +108,14 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                     //in case of success
                     StatusCode::OK => {
                         let info = resp.json::<FileInfo>()?;
-                        retrieve_file(&filename.to_str().unwrap(), &client, &info.document_id, &info.document_key);
+                        match retrieve_file(filename, &client, &info.document_id, &info.document_key) {
+                            Ok(v) =>  println!("file under translating, remaining time: {:?}",v.seconds_remaining) ,
+                            Err(e) =>  {
+                                println!("file {:?} translating failed: {:?}\n",filename,e);
+                                bad_translaion.push(filename.to_string());
+                                continue;
+                            }
+                        };
                     }
                     StatusCode::PAYLOAD_TOO_LARGE => {
                         println!("Request payload is too large!");
@@ -113,27 +128,34 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         println!();
     }
 
+    println!("file(s) successfully translated:\n{:#?}\n",good_translaion);
+    println!("file(s) failed to translate:\n{:#?}\n",bad_translaion);
+
     Ok(())
 }
 
-fn retrieve_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<(),reqwest::Error>  {
-    println!("Retrieving file `{}`...", filename);
+fn retrieve_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<FileState,reqwest::Error>  {
+    println!("Retrieving translated file {:?} ...", filename);
     //TODO...
     let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
-    let mut params = HashMap::new();
-    params.insert("auth_key", DEEPL_KEY);
-    params.insert("document_key", key);
-
+    let params = [("auth_key",DEEPL_KEY),("document_key",key)];
 
     let resp = client.post(&url)
     .form(&params)
     .send()?;
     println!("{}",resp.status());
 
-    let state = resp.json::<FileState>()?;
-    
-        
-    println!("status = {:#?}", state);
-    Ok(())
+    let state = resp.json::<FileState>();
+    match state {
+        Ok(ref v) => {
+            println!("state of the translation process = {:#?}", v.status);
+            return state;
+        }
+        Err(e) => {
+            println!("error:{:?}",e);
+            panic!("{:?}",e);
+        }
+    }
+
 }
