@@ -2,6 +2,8 @@ use std::{
     error,
     env,
     fs,
+    fs::File,
+    io::prelude::*,
     path::PathBuf,
     path::Path,
     time::Duration,
@@ -102,7 +104,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                 println!("starting translate {:?}", &path);
                 let form = reqwest::blocking::multipart::Form::new()
                     .text("source_lang","JA")
-                    .text("target_lang","EN-US")
+                    .text("target_lang","ZH")
                     .text("auth_key",DEEPL_KEY)
                     .file("file",&path)?;
                 
@@ -127,7 +129,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                             continue 'outer;
                                         }
                                         "done" => {
-                                            download_file(filename);
+                                            download_file(filename, &client, &info.document_id, &info.document_key);
                                             good_translaion.push(filename.to_string());
                                             break;
                                         }
@@ -172,7 +174,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<String,reqwest::Error>  {
 
     println!("\nacquiring translation state for file {:?} ...\n", filename);
-    //TODO...
+
     let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
     let params = [("auth_key",DEEPL_KEY),("document_key",key)];
@@ -208,6 +210,27 @@ fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str,
 }
 
 
-fn download_file(filename: &str) {
+fn download_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) {
     println!("Retrieving translated file {:?} ...", filename);
+
+    let url = format! ("{}/{}/result",DEEPL_ENDPOINT , id);
+
+    let params = [("auth_key",DEEPL_KEY),("document_key",key)];
+
+    let resp = client.post(&url)
+    .form(&params)
+    .send();
+
+    match resp {
+        Ok(v) => {
+            let content = v.bytes().unwrap();
+            println!("translation completed:\n{:#?}\n",content);
+            let mut file = File::create("translated.html").unwrap();
+            file.write_all(&content).unwrap();
+        }
+        Err(e) => {
+            println!("downloading error:{}",e);
+        }
+    }
+
 }
