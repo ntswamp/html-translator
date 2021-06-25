@@ -25,7 +25,14 @@ struct FileInfo {
 struct FileState {
     document_id: String,
     status:String,
-    seconds_remaining:u32,
+    seconds_remaining:Option<u32>,
+    //billed_characters:String,  //this field only existing for paid account.
+}
+
+#[derive(Deserialize,Debug)]
+struct FileStateDone {
+    document_id: String,
+    status:String,
     //billed_characters:String,  //this field only existing for paid account.
 }
 
@@ -115,7 +122,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                 Ok(v) =>  {
                                     match v.as_str() {
                                         "error" => {
-                                            println!("file {:?} translating failed.\n",filename);
+                                            println!("file {:?}'s translation was failed due to an unknown error.\n",filename);
                                             bad_translaion.push(filename.to_string());
                                             continue 'outer;
                                         }
@@ -131,7 +138,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                     }
                                 },
                                 Err(e) =>  {
-                                    println!("file {:?} translating failed: {:?}\n",filename,e);
+                                    println!("file {:?}'s translation was failed: {:?}\n",filename,e);
                                     bad_translaion.push(filename.to_string());
                                     continue 'outer;
                                 }
@@ -164,7 +171,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
  */
 fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<String,reqwest::Error>  {
 
-    println!("acquiring translation state for file {:?} ...\n", filename);
+    println!("\nacquiring translation state for file {:?} ...\n", filename);
     //TODO...
     let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
@@ -183,7 +190,7 @@ fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str,
                 Ok(ref v) => {
                     println!("translation state got: {:#?}", v.status);
                     if v.status.as_str() == "translating" || v.status.as_str() == "queued" {                        
-                        println!("remaining seconds = {:?}",v.seconds_remaining);
+                        println!("remaining seconds = {:?}",v.seconds_remaining.unwrap());
                     }
                     //ugle clone. may fix in future.
                     return Ok(v.status.clone());
