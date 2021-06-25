@@ -4,12 +4,11 @@ use std::{
     fs,
     path::PathBuf,
     path::Path,
-    collections::HashMap,
     time::Duration,
+    thread,
 };
 //use reqwest::blocking::Client;
 use reqwest::StatusCode;
-use reqwest::Error;
 use serde::Deserialize;
 
 const DEEPL_KEY : &str  = "811746cf-4fe6-01a0-f728-4b0e6aff6373";
@@ -65,7 +64,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     //reqwest part
     let client = reqwest::blocking::Client::new();
 
-    for entry in fs::read_dir(ja_path)? {
+    'outer: for entry in fs::read_dir(ja_path)? {
         let entry = entry?;
         let path = entry.path();
         let filename = path.file_name().unwrap().to_str().unwrap();
@@ -105,23 +104,48 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                     .send()?;
                 //response received
                 match resp.status() {
-                    //in case of success
+                    //in case of http request succeeded
                     StatusCode::OK => {
+
                         let info = resp.json::<FileInfo>()?;
-                        match retrieve_file(filename, &client, &info.document_id, &info.document_key) {
-                            Ok(v) =>  println!("file under translating, remaining time: {:?}",v.seconds_remaining) ,
-                            Err(e) =>  {
-                                println!("file {:?} translating failed: {:?}\n",filename,e);
-                                bad_translaion.push(filename.to_string());
-                                continue;
+
+                        loop {
+
+                            match know_file_state(filename, &client, &info.document_id, &info.document_key) {
+                                Ok(v) =>  {
+                                    match v.as_str() {
+                                        "error" => {
+                                            println!("file {:?} translating failed.\n",filename);
+                                            bad_translaion.push(filename.to_string());
+                                            continue 'outer;
+                                        }
+                                        "done" => {
+                                            download_file(filename);
+                                            good_translaion.push(filename.to_string());
+                                            break;
+                                        }
+                                        //still under translation
+                                        _ => {
+                                            thread::sleep( Duration::from_secs(3) );
+                                        }
+                                    }
+                                },
+                                Err(e) =>  {
+                                    println!("file {:?} translating failed: {:?}\n",filename,e);
+                                    bad_translaion.push(filename.to_string());
+                                    continue 'outer;
+                                }
                             }
-                        };
+
+                        }
+                    },
+                    s => {
+                        println!("failed to translate file {:?} : {:?}\n",filename,s);
+                        bad_translaion.push(filename.to_string());
+                        continue 'outer;
                     }
-                    StatusCode::PAYLOAD_TOO_LARGE => {
-                        println!("Request payload is too large!");
-                    }
-                    s => println!("Received response status: {:?}", s),
-                };
+                }
+
             }
             en_path.pop();
         }
@@ -134,8 +158,13 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     Ok(())
 }
 
-fn retrieve_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<FileState,reqwest::Error>  {
-    println!("Retrieving translated file {:?} ...", filename);
+
+/**
+ *TODO: comment about return value.
+ */
+fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<String,reqwest::Error>  {
+
+    println!("acquiring translation state for file {:?} ...\n", filename);
     //TODO...
     let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
@@ -143,19 +172,35 @@ fn retrieve_file(filename: &str, client: &reqwest::blocking::Client, id: &str, k
 
     let resp = client.post(&url)
     .form(&params)
-    .send()?;
-    println!("{}",resp.status());
+    .send();
 
-    let state = resp.json::<FileState>();
-    match state {
-        Ok(ref v) => {
-            println!("state of the translation process = {:#?}", v.status);
-            return state;
-        }
-        Err(e) => {
-            println!("error:{:?}",e);
-            panic!("{:?}",e);
-        }
+    match resp {
+        //HTTP request was successful
+        Ok(v) =>{ 
+            //deserialize JSON.
+            let state = v.json::<FileState>();
+            match state {
+                Ok(ref v) => {
+                    println!("translation state got: {:#?}", v.status);
+                    if v.status.as_str() == "translating" || v.status.as_str() == "queued" {                        
+                        println!("remaining seconds = {:?}",v.seconds_remaining);
+                    }
+                    //ugle clone. may fix in future.
+                    return Ok(v.status.clone());
+                }
+                Err(e) => {
+                    println!("failed to deserialize JSON.");
+                    return Err(e);
+                }
+            }
+        },
+        //propagate HTTP error
+        Err(e) => return Err(e)
     }
 
+}
+
+
+fn download_file(filename: &str) {
+    println!("Retrieving translated file {:?} ...", filename);
 }
