@@ -49,6 +49,15 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     let ja_path = env::current_dir()?;
     let parent_path = ja_path.parent().unwrap();
+
+    let language = vec!["en".to_string(), "zhcn".to_string(),"zhtw".to_string()];
+    
+    for lang in language {
+        let mut lang_path = PathBuf::from(parent_path);
+        lang_path.push(lang);
+        //TODO
+
+    }
     //en
     let mut en_path = PathBuf::from(parent_path);
     en_path.push("en");
@@ -61,10 +70,12 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mut zhtw_path = PathBuf::from(parent_path);
     zhtw_path.push("zhtw");
     
+    /* DEBUG
     println!(
         "en - {:?}\nzhcn - {:?}\nzhtw - {:?}\n",
         en_path, zhcn_path, zhtw_path
     );
+    */
 
 
     println!(
