@@ -9,6 +9,7 @@ use std::{
     time::Duration,
     thread,
 };
+
 //use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde::Deserialize;
@@ -31,14 +32,15 @@ struct FileState {
     //billed_characters:String,  //this field only existing for paid account.
 }
 
-#[derive(Deserialize,Debug)]
-struct FileStateDone {
-    document_id: String,
-    status:String,
-    //billed_characters:String,  //this field only existing for paid account.
+enum Language {
+    EN(String),
+    ZHCN(String),
+    ZHTW(String),
 }
 
 fn main() -> Result<(),Box<dyn error::Error>> {
+
+    //TODO: verify wether the program can create/delete files on user's computer or not.
 
     //&str vector storing file names of which are failed to translate.
     let mut bad_translaion: Vec<String> = Vec::new();
@@ -124,12 +126,20 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                 Ok(v) =>  {
                                     match v.as_str() {
                                         "error" => {
-                                            println!("file {:?}'s translation was failed due to an unknown error.\n",filename);
+                                            println!("[ERROR]file {:?}'s translation was failed due to an unknown error.\n",filename);
                                             bad_translaion.push(filename.to_string());
                                             continue 'outer;
                                         }
                                         "done" => {
-                                            download_file(filename, &client, &info.document_id, &info.document_key);
+                                            let translated = download_file(filename, &client, &info.document_id, &info.document_key);
+                                            match translated {
+                                                Ok(v) => {
+                                                    create_file(v);
+                                                },
+                                                Err(e) => {
+                                                    println!("[ERROR]file was translated, but failed to download:{}",e);
+                                                }
+                                            }
                                             good_translaion.push(filename.to_string());
                                             break;
                                         }
@@ -140,7 +150,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                     }
                                 },
                                 Err(e) =>  {
-                                    println!("file {:?}'s translation was failed: {:?}\n",filename,e);
+                                    println!("[ERROR]file {:?}'s translation was failed: {:?}\n",filename,e);
                                     bad_translaion.push(filename.to_string());
                                     continue 'outer;
                                 }
@@ -149,7 +159,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                         }
                     },
                     s => {
-                        println!("failed to translate file {:?} : {:?}\n",filename,s);
+                        println!("[ERROR]failed to translate file {:?} : {:?}\n",filename,s);
                         bad_translaion.push(filename.to_string());
                         continue 'outer;
                     }
@@ -198,7 +208,7 @@ fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str,
                     return Ok(v.status.clone());
                 }
                 Err(e) => {
-                    println!("failed to deserialize JSON.");
+                    println!("[ERROR]failed to deserialize JSON.");
                     return Err(e);
                 }
             }
@@ -210,7 +220,8 @@ fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str,
 }
 
 
-fn download_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) {
+use bytes::Bytes;
+fn download_file(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<Bytes,reqwest::Error>{
     println!("Retrieving translated file {:?} ...", filename);
 
     let url = format! ("{}/{}/result",DEEPL_ENDPOINT , id);
@@ -223,14 +234,23 @@ fn download_file(filename: &str, client: &reqwest::blocking::Client, id: &str, k
 
     match resp {
         Ok(v) => {
-            let content = v.bytes().unwrap();
-            println!("translation completed:\n{:#?}\n",content);
-            let mut file = File::create("translated.html").unwrap();
-            file.write_all(&content).unwrap();
-        }
+            let content = v.bytes();
+            match content {
+                Ok(v)=> Ok(v),
+                Err(e) => {
+                    println!("[ERROR]file was failed to convert to bytes");
+                    return Err(e);
+                }
+            }
+        },
         Err(e) => {
-            println!("downloading error:{}",e);
+            return Err(e);
         }
     }
+}
 
+
+fn create_file(content:Bytes){
+    let mut file = File::create("test-translated.html").unwrap();
+    file.write_all(&content).unwrap();
 }
