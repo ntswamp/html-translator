@@ -47,11 +47,11 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     //for those successful transaltion.
     let mut good_translaion: Vec<String> = Vec::new();
 
+
+    let language = vec!["en", "zhcn","zhtw"];
     let ja_path = env::current_dir()?;
     let parent_path = ja_path.parent().unwrap();
 
-    let language = vec!["en".to_string(), "zhcn".to_string(),"zhtw".to_string()];
-    
     for lang in language {
         let mut lang_path = PathBuf::from(parent_path);
         lang_path.push(lang);
@@ -145,7 +145,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                             let translated = download_file(filename, &client, &info.document_id, &info.document_key);
                                             match translated {
                                                 Ok(v) => {
-                                                    create_file(v);
+                                                    //create_file(v);
                                                 },
                                                 Err(e) => {
                                                     println!("[ERROR]file was translated, but failed to download:{}",e);
@@ -261,7 +261,7 @@ fn download_file(filename: &str, client: &reqwest::blocking::Client, id: &str, k
 }
 
 
-fn create_file(content:Bytes){
+fn create_file(content:Bytes, language:&str){
     let mut file = File::create("test-translated.html").unwrap();
     file.write_all(&content).unwrap();
 }
