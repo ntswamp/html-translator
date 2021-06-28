@@ -54,8 +54,6 @@ enum Language {
 
 fn main() -> Result<(),Box<dyn error::Error>> {
 
-    //TODO: verify: is the program located in the correct directory?
-
     //&str vector storing file names of which are failed to translate.
     let mut bad_translaion: Vec<String> = Vec::new();
     //for those successful translation.
@@ -69,14 +67,18 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     //information/ja
     let ja_path = env::current_dir()?;
-    println!(
-        "html files modified in the last 24 hours in {:?}:\n\n",
-        ja_path,
-    );
+    //check if the program is located in the correct directory.
+    if &ja_path.file_name().unwrap().to_str().unwrap() != &"html-translator" {
+        eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.");
+        std::process::exit(1);
+    }    
 
     let parent_path = ja_path.parent().unwrap();
-    let mut en_path = PathBuf::from(parent_path);
-    en_path.push("en");
+
+    //let mut en_path = PathBuf::from(parent_path);
+    //en_path.push("en");
+
+    /*
     //create english folder
     let en = fs::create_dir("../en");
     match en {
@@ -88,6 +90,8 @@ fn main() -> Result<(),Box<dyn error::Error>> {
             }
         }
     }
+    */
+
 
     //reqwest blocking client
     let client = reqwest::blocking::Client::new();
@@ -103,16 +107,19 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         let sec = entry.metadata()?.modified()?;
         if filename.ends_with(".html") && sec.elapsed()?.as_secs() < 86400 {
             println!("researching on {:?}...", filename);
-            //file path
-            en_path.push(filename);
-            if Path::new(en_path.to_str().unwrap()).exists() {
-                println!("file {:?} may have been translated by someone, skip.\n",filename);
-                skipped_translaion.push(filename.to_string());
-                continue;
-            } else {
+             
                 'lang: for lang in &language {
+                    //file path
+                    let mut lang_file_path = PathBuf::from(parent_path);
+                    lang_file_path.push(lang);
+                    lang_file_path.push(filename);
+                    if Path::new(lang_file_path.to_str().unwrap()).exists() {
+                        println!("[WARNING]file {:?} may have been translated by someone, skip.\n",filename);
+                        skipped_translaion.push(format!("{} - {}",filename.to_string(),&lang));
+                        continue;
+                    }
                     //make the translation
-                    println!("translating {:?} to {:?}", filename,&lang);
+                    println!("translating {:?} to {:?}...", filename,&lang);
                     //POST request
                     let form = reqwest::blocking::multipart::Form::new()
                     .text("source_lang","JA")
@@ -137,16 +144,16 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                     Ok(v) =>  {
                                         match v.status.as_str() {
                                             "error" => {
-                                                println!("[ERROR]file {:?}'s translation was failed due to an unknown error.\n",filename);
+                                                println!("[ERROR] file {:?}'s translation was failed due to an unknown error.\n",filename);
                                                 bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                 continue 'lang;
                                             }
                                             "done" => {
-                                                println!("\ntranslation is completed. retrieving file...");
+                                                println!("\ntranslation completed. retrieving file...");
                                                 let translated = download_file(filename, &client, &info.document_id, &info.document_key);
                                                 match translated {
                                                     Ok(v) => {
-                                                        println!("\nfile retrieved. copy to local folder...");
+                                                        println!("file retrieved. copy to local folder...");
                                                         match create_file(filename,v,&lang){
                                                             Ok(_) => {
                                                                 println!("done.\n");
@@ -154,7 +161,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                                 break;
                                                             },
                                                             Err(e) => {
-                                                                println!("[ERROR]file was retrived, but failed to create local copy : {:?}",e);
+                                                                println!("[ERROR] file was retrived, but failed to create local copy : {:?}",e);
                                                                 bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                                 continue 'lang;
                                                             }
@@ -163,7 +170,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                         
                                                     },
                                                     Err(e) => {
-                                                        println!("[ERROR]file was translated, but failed to download:{}",e);
+                                                        println!("[ERROR] file was translated, but failed to download:{}",e);
                                                         bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                         continue 'lang;
                                                     }
@@ -171,16 +178,16 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                             }
                                             //still under translation
                                             _ => {
-                                                println!("state: {:#?}", v.status);
+                                                println!("state: {:#?}.", v.status);
                                                 if v.status.as_str() == "translating" || v.status.as_str() == "queued" {                        
-                                                    println!("remaining = {:?} second(s).",v.seconds_remaining.unwrap());
+                                                    println!("{:?} seconds remaining.",v.seconds_remaining.unwrap());
                                                 }
                                                 thread::sleep( Duration::from_secs(3) );
                                             }
                                         }
                                     },
                                     Err(e) =>  {
-                                        println!("[ERROR]failed to translate file {:?} in {:?} : {:?}\n",filename,&lang,e);
+                                        println!("[ERROR] failed to translate file {:?} in {:?} : {:?}\n",filename,&lang,e);
                                         bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                         continue 'lang;
                                     }
@@ -189,7 +196,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                             }// inner loop finished.
                         },
                         err => {
-                            println!("[ERROR]http error: {:?}\n",err);
+                            println!("[ERROR] http error: {:?}\n",err);
                             bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                             continue 'lang;
                         }
@@ -197,14 +204,14 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                 
                 }//'lang loop
         
-            }
+            
         }
     }//outer loop
 
 
-    println!("\nfile(s) successfully translated:\n{:#?}\n",good_translaion);
-    println!("file(s) failed to translate:\n{:#?}\n",bad_translaion);
-    println!("file(s) skipped:\n{:#?}\n",skipped_translaion);
+    println!("\nsuccessful translation:\n{:#?}\n",good_translaion);
+    println!("failed translation:\n{:#?}\n",bad_translaion);
+    println!("skipped translation:\n{:#?}\n",skipped_translaion);
 
     Ok(())
 }
@@ -264,7 +271,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                 Ok(v) =>  {
                                     match v.as_str() {
                                         "error" => {
-                                            println!("[ERROR]file {:?}'s translation was failed due to an unknown error.\n",filename);
+                                            println!("[ERROR] file {:?}'s translation was failed due to an unknown error.\n",filename);
                                             bad_translaion.push(filename.to_string());
                                             continue 'outer;
                                         }
@@ -275,7 +282,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                     //create_file(v);
                                                 },
                                                 Err(e) => {
-                                                    println!("[ERROR]file was translated, but failed to download:{}",e);
+                                                    println!("[ERROR] file was translated, but failed to download:{}",e);
                                                 }
                                             }
                                             good_translaion.push(filename.to_string());
@@ -288,7 +295,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                     }
                                 },
                                 Err(e) =>  {
-                                    println!("[ERROR]file {:?}'s translation was failed: {:?}\n",filename,e);
+                                    println!("[ERROR] file {:?}'s translation was failed: {:?}\n",filename,e);
                                     bad_translaion.push(filename.to_string());
                                     continue 'outer;
                                 }
@@ -297,7 +304,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                         }
                     },
                     s => {
-                        println!("[ERROR]failed to translate file {:?} : {:?}\n",filename,s);
+                        println!("[ERROR] failed to translate file {:?} : {:?}\n",filename,s);
                         bad_translaion.push(filename.to_string());
                         continue 'outer;
                     }
