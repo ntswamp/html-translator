@@ -8,11 +8,9 @@
 use std::{
     error,
     env,
-    fs,
     fs::File,
     io::prelude::*,
     io::Error,
-    io::ErrorKind,
     path::PathBuf,
     path::Path,
     time::Duration,
@@ -68,7 +66,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     //information/ja
     let ja_path = env::current_dir()?;
     //check if the program is located in the correct directory.
-    if &ja_path.file_name().unwrap().to_str().unwrap() != &"html-translator" {
+    if &ja_path.file_name().unwrap().to_str().unwrap() != &"ja" {
         eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.");
         std::process::exit(1);
     }    
