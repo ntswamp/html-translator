@@ -315,7 +315,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 /**
  *TODO: comment about return value.
  */
-fn know_file_state(filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<FileState,reqwest::Error>  {
+fn know_file_state(_filename: &str, client: &reqwest::blocking::Client, id: &str, key: &str) -> Result<FileState,reqwest::Error>  {
 
     let url = format! ("{}/{}",DEEPL_ENDPOINT , id);
 
@@ -366,9 +366,14 @@ fn download_file(_filename: &str, client: &reqwest::blocking::Client, id: &str, 
 
 fn create_file(content:Bytes, language:&str) -> Result<(),Error>{
     let path = format!("../{}",language);
-    let mut file = File::create(path).write_all(&content).unwrap();
+    let file = File::create(path);
     match file {
-        Ok(v) => v.write_all(&content),
+        Ok(mut v) => {
+            match v.write_all(&content) {
+                Ok(_) => return Ok(()),
+                Err(e) => return Err(e),
+            }
+        },
         Err(e) => return Err(e),
     }
 }
