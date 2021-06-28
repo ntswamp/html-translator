@@ -64,14 +64,15 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
 
     //information/ja
-    let ja_path = env::current_dir()?;
+    let mut ja_path = env::current_exe()?;
+    ja_path.pop();
     //check if the program is located in the correct directory.
-    if &ja_path.file_name().unwrap().to_str().unwrap() != &"ja" {
-        eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.");
+    if &ja_path.file_name().unwrap().to_str().unwrap() != &"debug" {
+        eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.\ncurrent path: {:?}.\n",&ja_path);
         std::process::exit(1);
     }    
 
-    let parent_path = ja_path.parent().unwrap();
+    let parent_path = PathBuf::from(ja_path);
 
     //let mut en_path = PathBuf::from(parent_path);
     //en_path.push("en");
@@ -107,8 +108,8 @@ fn main() -> Result<(),Box<dyn error::Error>> {
             println!("researching on {:?}...", filename);
              
                 'lang: for lang in &language {
-                    //file path
-                    let mut lang_file_path = PathBuf::from(parent_path);
+                    //******TODO***** this is wrong !!!! file path
+                    let mut lang_file_path = PathBuf::from(&parent_path);
                     lang_file_path.push(lang);
                     lang_file_path.push(filename);
                     if Path::new(lang_file_path.to_str().unwrap()).exists() {
@@ -152,7 +153,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                 match translated {
                                                     Ok(v) => {
                                                         println!("file retrieved. copy to local folder...");
-                                                        match create_file(filename,v,&lang){
+                                                        match create_file(lang_file_path.to_str().unwrap(),v,&lang){
                                                             Ok(_) => {
                                                                 println!("done.\n");
                                                                 good_translaion.push(format!("{} - {}",filename.to_string(),&lang));
@@ -369,9 +370,9 @@ fn download_file(_filename: &str, client: &reqwest::blocking::Client, id: &str, 
     }
 }
 
-fn create_file(filename: &str, content:Bytes, language:&str) -> Result<(),Error>{
-    let path = format!("../{}/{}",language,filename);
-    let file = File::create(path);
+fn create_file(filename: &str, content:Bytes, _language:&str) -> Result<(),Error>{
+    println!("DEBBBBBBBBBUG: {:?}",filename);
+    let file = File::create(filename);
     match file {
         Ok(mut v) => {
             match v.write_all(&content) {
