@@ -147,7 +147,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                 match translated {
                                                     Ok(v) => {
                                                         println!("\nfile retrieved. copy to local folder...");
-                                                        match create_file(v,&lang){
+                                                        match create_file(filename,v,&lang){
                                                             Ok(_) => {
                                                                 println!("done.\n");
                                                                 good_translaion.push(format!("{} - {}",filename.to_string(),&lang));
@@ -171,7 +171,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                             }
                                             //still under translation
                                             _ => {
-                                                println!("translation state: {:#?}", v.status);
+                                                println!("state: {:#?}", v.status);
                                                 if v.status.as_str() == "translating" || v.status.as_str() == "queued" {                        
                                                     println!("remaining = {:?} second(s).",v.seconds_remaining.unwrap());
                                                 }
@@ -364,8 +364,8 @@ fn download_file(_filename: &str, client: &reqwest::blocking::Client, id: &str, 
     }
 }
 
-fn create_file(content:Bytes, language:&str) -> Result<(),Error>{
-    let path = format!("../{}",language);
+fn create_file(filename: &str, content:Bytes, language:&str) -> Result<(),Error>{
+    let path = format!("../{}/{}",language,filename);
     let file = File::create(path);
     match file {
         Ok(mut v) => {
