@@ -9,6 +9,7 @@ use std::{
     error,
     env,
     fs::File,
+    fs,
     io,
     io::prelude::*,
     io::Error,
@@ -107,7 +108,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         let filename = entry.file_name().to_str().unwrap();
         let sec = entry.metadata()?.modified()?;
         if filename.ends_with(".html") && sec.elapsed()?.as_secs() < 86400 {
-            println!("untranslated file found: {:?}...", entry.path());
+            println!("*****************************************\nchecking on file: {:?}...", entry.path());
              
                 'lang: for lang in &language {
                     //get html file path on corresponding language folder
@@ -159,14 +160,14 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                 match translated {
                                                     Ok(v) => {
                                                         println!("file retrieved. copy to local folder...");
-                                                        match create_file(lang_file_path.to_str().unwrap(),v,&lang){
+                                                        match create_file(lang_file_path,v,&lang){
                                                             Ok(_) => {
                                                                 println!("done.\n");
                                                                 good_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                                 break;
                                                             },
                                                             Err(e) => {
-                                                                println!("[ERROR] file was retrived, but failed to create local copy : {:?}",e);
+                                                                println!("[ERROR] file was retrived, but failed to create local copy : {:?}\n",e);
                                                                 bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                                 continue 'lang;
                                                             }
@@ -175,7 +176,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                         
                                                     },
                                                     Err(e) => {
-                                                        println!("[ERROR] file was translated, but failed to download:{}",e);
+                                                        println!("[ERROR] file was translated, but failed to download:{}\n",e);
                                                         bad_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                                                         continue 'lang;
                                                     }
@@ -184,8 +185,12 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                             //still under translation
                                             _ => {
                                                 println!("state: {:#?}.", v.status);
-                                                if v.status.as_str() == "translating" || v.status.as_str() == "queued" {                        
-                                                    println!("{:?} seconds remaining.",v.seconds_remaining.unwrap());
+                                                if v.status.as_str() == "translating" || v.status.as_str() == "queued" {      
+                                                    match v.seconds_remaining {
+                                                        Some(s) => println!("{:?} seconds remaining.",s),
+                                                        None => println!("please wait."),
+                                                    }   
+                                                    
                                                 }
                                                 thread::sleep( Duration::from_secs(3) );
                                             }
@@ -382,7 +387,12 @@ fn download_file(_filename: &str, client: &reqwest::blocking::Client, id: &str, 
     }
 }
 
-fn create_file(file_path: &str, content:Bytes, _language:&str) -> Result<(),Error>{
+fn create_file(file_path: &PathBuf, content:Bytes, _language:&str) -> Result<(),Error>{
+    let folder = file_path.parent().unwrap();
+    match fs::create_dir_all(folder) {
+        Ok(_) => (),
+        Err(e) => return Err(e),
+    }
     let file = File::create(file_path);
     match file {
         Ok(mut v) => {
