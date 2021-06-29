@@ -23,12 +23,22 @@ use std::{
 //use reqwest::blocking::Client;
 use bytes::Bytes;
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Serialize,Deserialize};
 use walkdir::WalkDir;
 
 const DEEPL_KEY : &str  = "811746cf-4fe6-01a0-f728-4b0e6aff6373";
 const DEEPL_ENDPOINT : &str = "https://api.deepl.com/v2/document";
 
+/*
+//config
+#[derive(Serialize, Deserialize)]
+struct Config {
+    version: u8,
+    deepl_key: String,
+    source_lang:String,
+    check_range:u64,
+}
+*/
 
 #[derive(Deserialize)]
 struct FileInfo {
