@@ -61,7 +61,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mut skipped_translaion: Vec<String> = Vec::new();
 
     //languages translate to
-    let language = vec!["en", "zh"];
+    let language = vec!["en", "zhcn","zhtw"];
 
 
     //supposed to be .../information/ja
@@ -121,12 +121,17 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                     //make the translation
                     println!("translating {:?} to {:?}...", filename,&lang);
                     //POST request
+                    let mut target_lang = *lang;
+                    match target_lang {
+                        "en" => target_lang = "EN-US",
+                        _ => target_lang = "ZH",
+                    }
                     let form = reqwest::blocking::multipart::Form::new()
                     .text("source_lang","JA")
-                    .text("target_lang",*lang)
+                    .text("target_lang",target_lang)
                     .text("auth_key",DEEPL_KEY)
                     .file("file",entry.path())?;
-                    
+
                     let resp = client.post(DEEPL_ENDPOINT)
                     .multipart(form)
                     .send()?;
@@ -377,9 +382,8 @@ fn download_file(_filename: &str, client: &reqwest::blocking::Client, id: &str, 
     }
 }
 
-fn create_file(filename: &str, content:Bytes, _language:&str) -> Result<(),Error>{
-    println!("DEBBBBBBBBBUG: {:?}",filename);
-    let file = File::create(filename);
+fn create_file(file_path: &str, content:Bytes, _language:&str) -> Result<(),Error>{
+    let file = File::create(file_path);
     match file {
         Ok(mut v) => {
             match v.write_all(&content) {
