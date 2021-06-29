@@ -1,7 +1,7 @@
 /**
  * 
- * PLACE THIS FILE UNDER  `.../static/webview/information/ja` DIRECTORY,
- * THEN RUN IT.
+ * PLACE THIS FILE UNDER  `.../static/webview/information/ja` DIRECTORY
+ * BEFORE RUNNING.
  * 
  **/
 
@@ -9,6 +9,7 @@ use std::{
     error,
     env,
     fs::File,
+    io,
     io::prelude::*,
     io::Error,
     path::PathBuf,
@@ -63,16 +64,17 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let language = vec!["en", "zh"];
 
 
-    //information/ja
-    let mut ja_path = env::current_exe()?;
-    ja_path.pop();
+    //supposed to be .../information/ja
+    let exe_folder = get_exe_folder()?;
     //check if the program is located in the correct directory.
-    if &ja_path.file_name().unwrap().to_str().unwrap() != &"debug" {
-        eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.\ncurrent path: {:?}.\n",&ja_path);
+    if &exe_folder.file_name().unwrap().to_str().unwrap() != &"ja" {
+        eprintln!("[ERROR] place this file under  `.../static/webview/information/ja` folder.\ncurrent path: {:?}.\n",&exe_folder);
         std::process::exit(1);
-    }    
+    }
+    println!("researching on folder {:?}",&exe_folder);
 
-    let parent_path = PathBuf::from(ja_path);
+    //.../information
+    let parent_path = exe_folder.parent().unwrap();
 
     //let mut en_path = PathBuf::from(parent_path);
     //en_path.push("en");
@@ -98,22 +100,21 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     
 
     //walk through current "ja" folder
-    for entry in WalkDir::new(".")
+    for entry in WalkDir::new(exe_folder.as_path())
     .follow_links(true)
     .into_iter()
     .filter_map(|e| e.ok()) {
         let filename = entry.file_name().to_str().unwrap();
         let sec = entry.metadata()?.modified()?;
         if filename.ends_with(".html") && sec.elapsed()?.as_secs() < 86400 {
-            println!("researching on {:?}...", filename);
+            println!("untranslated file found: {:?}...", entry.path());
              
                 'lang: for lang in &language {
-                    //******TODO***** this is wrong !!!! file path
-                    let mut lang_file_path = PathBuf::from(&parent_path);
-                    lang_file_path.push(lang);
-                    lang_file_path.push(filename);
+                    //get html file path on corresponding language folder
+                    let entry_path_stripped = entry.path().strip_prefix(&exe_folder.as_path()).unwrap();
+                    let lang_file_path = &parent_path.join(lang).join(entry_path_stripped);
                     if Path::new(lang_file_path.to_str().unwrap()).exists() {
-                        println!("[WARNING]file {:?} may have been translated by someone, skip.\n",filename);
+                        println!("[SKIP] file {:?} may have been translated by someone, skip.\n",filename);
                         skipped_translaion.push(format!("{} - {}",filename.to_string(),&lang));
                         continue;
                     }
@@ -316,6 +317,12 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     }
     */
 
+//helper
+fn get_exe_folder() -> io::Result<PathBuf> {
+    let mut exe_folder = env::current_exe()?;
+    exe_folder.pop();
+    Ok(exe_folder)
+}
 
 
 /**
