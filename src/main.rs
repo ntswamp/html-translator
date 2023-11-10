@@ -26,7 +26,7 @@ use reqwest::StatusCode;
 use serde::{Serialize,Deserialize};
 use walkdir::WalkDir;
 
-const DEEPL_KEY : &str  = "811746cf-4fe6-01a0-f728-4b0e6aff6373";
+const DEEPL_KEY : &str  = "insert-your-deepl-api-key-here";
 const DEEPL_ENDPOINT : &str = "https://api.deepl.com/v2/document";
 
 /*
